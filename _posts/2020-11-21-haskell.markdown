@@ -1,0 +1,973 @@
+---
+layout: post
+title: "Haskell 101"
+date: 2020-11-21 20:50:00 +0800
+categories: jekyll update
+---
+
+# Types and Typeclasses
+
+Type of every expression is known at compile time  
+Has type inference
+
+Examine types using `:t` command  
+`:t 'a'` prints `'a' :: Char`  
+`:t True` prints `True :: Bool`  
+`:t "Hello!"` prints `"Hello!" :: [Char]`  
+`:t (True, 'a')` prints `(True, 'a') :: (Bool, Char)`
+
+Functions have types. We can give them explicit type declaration.  
+Example:
+
+```haskell
+removeNonUppercase :: [Char] -> [Char]
+removeNonUppercase st = [ c | c <- st, c `elem` ['A'..'Z']]
+```
+
+`removeNonUppercase` has a type of `[Char] -> [Char]`, meaning it maps from a string to a string.
+
+Type of a function that takes several parameters. Example:
+
+```haskell
+addThree :: Int -> Int -> Int -> Int
+addThree x y z = x + y + z
+```
+
+There is no special distinction between parameters and the return type (last item in the declaration)
+
+## Types
+
+`Int` : Integer, whole numbers. Bounded, has a min and max value.  
+`Integer` : Unbounded. Can represent really big numbers.  
+`Float` : Floating point with single precision.  
+`Double` : Floating point with double the precision.  
+`Bool` : Boolean type. `True` or `False`  
+`Char` : Character. Denoted by singled quotes. A list of characters is a string.
+
+### Type variables
+
+- Like generics in other languages
+- Functions that have type variables are called polymorphic functions
+
+```
+ghci> :t head
+head :: [a] -> a
+```
+
+`a` can be of any type. The type declaration above means that `head` can take a list of any type and returns one element of that type.
+
+```
+ghci> :t fst
+fst :: (a, b) -> a
+```
+
+### Typeclasses
+
+- Sort of interface that defines some behavior
+- If a type is part of a typeclass, that means that it supports and implements the behavior the typeclass describes
+
+```
+ghci> :t (==)
+(==) :: (Eq a) => a -> a -> Bool
+```
+
+Everything before `=>` is called a class constraint. To read the above declaration:
+
+> The equality function takes any two values that are of the same type and returns a `Bool`. The type of those two values must be a member of the `Eq` class (the class constraint).
+
+#### Basic typeclasses
+
+- `Eq`: Used for types that support equality testing.
+  - Functions that its members implement are `==` and `/=`
+- `Ord`: Types that have an ordering
+  - All types except for functions are part of `Ord`
+  - Covers standard compare functions: `>`, `<`, `>=`, `<=`
+  - To be a member of `Ord`. A type must first have membership in the `Eq` club
+
+```
+ghci> :t (>)
+(>) :: (Ord a) => a -> a -> Bool
+```
+
+- `Show`: Can be presented as strings
+  - All types except for functions are part of `Show`
+  - `show` function takes a value whose type is a member of `Show` and presents it as a string. E.g. `show 3` prints `"3"`
+- `Read`: Sort of opposite of `Show`
+  - `read` function takes a string and returns a type which is a member of `Read`.
+- `Enum`: Sequantially ordered types - can be enumerated
+  - Have defined successors and predecessors (using the `succ` and `pred` functions)
+  - Types in this class: `()`, `Bool`, `Char`, `Ordering`, `Int`, `Integer`, `Float`, `Double`
+
+```
+ghci> ['a'..'e']
+"abcde"
+ghci> [LT..GT]
+[LT, EQ, GT]
+ghci> [3..5]
+[3,4,5]
+ghci> succ 'B'
+'C'
+```
+
+- `Bounded`: Members have an upper and lower bound
+  - All tuples are also part of `Bounded` if the components are also in it.
+
+```
+ghci> minBound :: Int
+-2147483648
+ghci> maxBound :: Char
+'\1114111'
+ghci> maxBound :: (Bool, Int, Char)
+(True,2147483647,'\1114111')
+```
+
+- `Num`: Numeric typeclass
+  - Members have the property of being able to act like numbers
+  - To join `Num`, a type must already be friends with `Show` and `Eq`
+- `Integral`: Numeric typeclass
+  - Only includes integral (whole) numbers. `Int` and `Integer`
+- `Floating` \* Includes only floating point numbers. `Float` and `Double`
+  > A useful function for dealing with numbers is `fromIntegral`. Type declaration: `fromIntegral :: (Num b, Integral a) => a -> b`. Useful when trying to make integral and floating point types work together.
+
+# Functions
+
+## Pattern Matching
+
+When defining functions, can define separate function bodies for different patterns.
+
+Order is is important, best to specify the most specific ones first and then the more general ones (catch-all pattern should be the last).
+
+```haskell
+lucky :: (Integral a) => a -> String
+lucky 7 = "LUCKY NUMBER SEVEN!"
+lucky x = "Sorry, you're out of luck, pal!"
+```
+
+Patterns checked from top to bottom and when a pattern is found, the corresponding function body will be used.
+
+Pattern matching with tuples:
+
+```haskell
+addVectors :: (Num a) => (a, a) -> (a, a) -> (a, a)
+addVectors (x1, y1) (x2, y2) = (x1 + x2, y1 + y2)
+```
+
+**Pattern matching for list**:  
+`[]` matches empty list
+
+`x:xs` bind head of list to `x` and the rest of it to `xs`. Even if there's only one element, `xs` will up as an empty list `[]`
+
+`x:y:z:zs` only match against list that have three elements or more
+
+Example function definitions with list pattern matching:
+
+```haskell
+--implementing head function
+head' :: [a] -> a
+head' [] = error "Can't call head on an empty list, dummy!"
+head' (x:_) = x
+```
+
+```haskell
+tell :: (Show a) => [a] -> String
+tell [] = "The list is empty"
+tell (x:[]) = "The list has one element: " ++ show x
+tell (x:y:[]) = "The list has two elements: " ++ show x ++ " and " ++ show y
+tell (x:y:_) = "This list is long. The first two elements are: " ++ show x ++ " and " ++ show y
+```
+
+`[1, 2, 3]` is just syntactic sugar for `1:2:3:[]`. So, `(x:[])` and `(x:y:[])` can be rewritten as `[x]` and `[x,y]`. But can't rewrite `(x:y:_)` with square brackets because it matches any list of length 2 or more.
+
+```haskell
+---implementing length
+length' :: (Num a) => [a] -> b
+length' [] = 0
+length' (_:xs) = 1 + length' xs
+```
+
+```haskell
+---implementing sum
+sum' :: (Num a) => [a] -> a
+sum' [] = 0
+sum' (x:xs) = x + sum' xs
+```
+
+**Patterns**  
+Putting a name and an `@` in front of a pattern binds the pattern to that name. So that we can reuse that pattern variable. E.g. `xs@(x:y:ys)`
+
+## Guards
+
+Tests whether some property of a value (or several of them) are true or false (similar to an if statement).
+
+```haskell
+bmiTell :: (RealFloat a) => a -> String
+bmiTell bmi
+    | bmi <= 18.5 = "You're underweight, you emo, you!"
+    | bmi <= 25.0 = "You're supposedly normal. Pffft, I bet you're ugly!"
+    | bmi <= 30.0 = "You're fat! Lose some weight, fatty!"
+    | otherwise   = "You're a whale, congratulations!"
+```
+
+Guards are indicated by pipes that follow a function's name and its parameters. A guard is a boolean expression. If it evaluates to `True`, then corresponding function body is used. If `False`, checking drops through to the next guard and so on. The last guard is `otherwise` which catches everything.
+
+Guards with functions that take as many parameters:
+
+```haskell
+bmiTell :: (RealFloat a) => a -> a -> String
+bmiTell weight height
+    | weight / height ^ 2 <= 18.5 = "You're underweight, you emo, you!"
+    | weight / height ^ 2 <= 25.0 = "You're supposedly normal. Pffft, I bet you're ugly!"
+    | weight / height ^ 2 <= 30.0 = "You're fat! Lose some weight, fatty!"
+    | otherwise                 = "You're a whale, congratulations!"
+```
+
+More examples:
+
+```haskell
+myCompare :: (Ord a) => a -> a -> Ordering
+a `myCompare` b
+  | a > b = GT
+  | a == b = EQ
+  | otherwise = LT
+```
+
+### Where bindings
+
+`where` allows us to define **names** or **functions** which will be visible across the guards (don't have to repeat). E.g.
+
+```haskell
+bmiTell :: (RealFloat a) => a -> a -> String
+bmiTell weight height
+    | bmi <= skinny = "You're underweight, you emo, you!"
+    | bmi <= normal = "You're supposedly normal. Pffft, I bet you're ugly!"
+    | bmi <= fat    = "You're fat! Lose some weight, fatty!"
+    | otherwise     = "You're a whale, congratulations!"
+    where bmi = weight / height ^ 2
+          skinny = 18.5
+          normal = 25.0
+          fat = 30.0
+```
+
+`where` bindings are not shared across function bodies of different patterns. To share names, must define them globally.
+
+`where` bindings can be nested.
+
+### Let bindings
+
+Allow binding to variables anywhere and are expression themselves, but are very local, so they don't span across guards.
+
+Form: `let <bindings> in <expression>`
+
+```haskell
+cylinder :: (RealFloat a) => a -> a -> a
+cylinder r h =
+    let sideArea = 2 * pi * r * h
+        topArea = pi * r ^2
+    in  sideArea + 2 * topArea
+```
+
+Names defined in the `let` part are accessible to the _expression_ after the `in` part.
+
+Difference between `let` and `where`: `let` bindings are expressions themselves; `where` bindings are syntactic constructs.
+
+Can use `let` in almost anywhere:
+
+```
+ghci> 4 * (let a = 9 in a + 1) + 2
+42
+```
+
+Introduce functions in local scope:
+
+```
+ghci> [let square x = x * x in (square 5, square 3, square 2)]
+[(25,9,4)]
+```
+
+Inside list comprehensions:
+
+```haskell
+calcBmis :: (RealFloat a) => [(a, a)] -> [a]
+calcBmis xs = [bmi | (w, h) <- xs, let bmi = w / h ^ 2, bmi >= 25.0]
+```
+
+Names defined in a `let` inside a list comprehension are visible to the output function (part befeore the `|`) and all predicates and setions that come after.
+
+Can't use the `bmi` name in `(w, h) <- xs` part because it's defined prior to the `let` binding.
+
+## Case expressions
+
+Interchangeable with pattern matching on parameters in function definitions.
+
+```haskell
+-- Pattern matching
+head' :: [a] -> a
+head' [] = error "No head for empty lists!"
+head' (x:_) = x
+-- Case expression
+head' :: [a] -> a
+head' xs = case xs of [] -> error "No head for empty lists!"
+                      (x:_) -> x
+```
+
+Synxtax for case expression:
+
+```
+case expression of pattern -> result
+                   pattern -> result
+                   pattern -> result
+                   ...
+```
+
+Difference between pattern matching and case expressions: case expressions can be used anywhere while pattern matching can only be done when defining functions.
+
+# Recursion
+
+Way of defining functions in which the function is applied inside its own definition.
+
+Approach to recursion:
+
+1. Define an edge case (empty list for list, leaf for trees)
+2. Define a function that does something between some element and the function applied to the rest
+
+**Maximum Function**
+
+```haskell
+maximum' :: (Ord a) => [a] -> a
+maximum' [] = error "maximum of empty list"
+maximum [x] = x
+maximum' (x:xs)
+  | x > maxTail = x
+  | otherwise = maxTail
+  where maxTail = maximum' xs
+
+--Rewriting using the `max` function
+maximum' :: (Ord a) => [a] -> a
+maximum' [] = error "maximum of empty list"
+maximum' [x] = x
+maximum' (x:xs) = max x (maximum' xs)
+```
+
+**Replication Function**
+
+```haskell
+replicate' :: (Num i, Ord i) => i -> a -> [a]
+replicate' n x
+  | n <= 0 = []
+  | otherwise = x:replicate' (n-1) x
+```
+
+**Take Function**
+
+```haskell
+take' :: (Num i, Ord i) => i -> [a] -> [a]
+take' n (x:xs)
+  | n <= 0 = []
+  | otherwise = x:take' (n-1) xs
+```
+
+**Reverse Function**
+
+```haskell
+reverse' :: [a] -> [a]
+reverse' [] = []
+reverse' (x:xs) = reverse' xs ++ [x]
+```
+
+**Zip Function**
+
+```haskell
+zip' :: [a] -> [b] -> [(a, b)]
+zip' _ [] = []
+zip' [] _ = []
+zip' (x:xs) (y:ys) = (x,y):zip' xs ys
+```
+
+**Elem Function**
+
+```haskell
+elem' :: (Eq a) => a -> [a] -> Bool
+elem' a [] = False
+elem' a x:xs
+  | a == x = True
+  | otherwise a `elem'` xs
+```
+
+**Quicksort Function**
+
+```haskell
+quickSort :: (Ord a) => [a] -> [a]
+quickSort [] = []
+quickSort (x:xs) =
+  let smallerSorted = quickSort [a | a <- xs, a <= x]
+      biggerSorted = quickSort [a | a <- xs, a > x]
+  in smallerSorted ++ [x] ++ biggerSorted
+```
+
+# Higher Order Functions
+
+Functions that either take functions as parameters or return functions as return values.
+
+## Curried Functions
+
+- Every function in Haskell officially only takes one parameter.
+- Functions that take >1 parameter are curried functions.
+
+`max :: (Ord a) => a -> (a -> a)` can be read as: `max` takes an `a` and returns a function that takes an `a` and returns an `a`.
+
+The thing before the `->` is the parameter that a function takes and the thing after it is what it returns.
+
+By calling functions with too few params, so to speak, we get back a **partially applied** function (function take takes as many parameters as we left out). E.g.
+
+```
+ghci> let multTwoWithNine = multThree 9
+ghci> multTwoWithNine 2 3
+54
+ghci> let multWithEighteen = multTwoWithNine 2
+ghci> multWithEighteen 10
+180
+```
+
+Infix functions can be partially applied by using sections (surround with parentheses and only supply a parameter on one side). That creates a function that takes one parameter and then applies it to the side that's missing an opereand. E.g.
+
+```haskell
+divideByTen :: (Floating a) => a -> a
+divideByTen = (/10)
+-- divideByten 200 is equivalent to 200/10 and (/10) 200
+```
+
+More section examples:
+
+- `(-4)` would create a function that takes a number and subtracts 4 from it. Equivalent with `(subtract 4)`
+
+---
+
+## Higher order programming
+
+**`zipWith` function** - takes a function and two lists as params and then joins the two lists by applying the function between corresponding elements.
+
+```haskell
+zipWith' :: (a -> b -> c) -> [a] -> [b] -> [c]
+zipWith' _ [] _ = []
+zipwith' _ _ [] = []
+zipWith' f x:xs y:ys = f x y : zipWith' f xs ys
+```
+
+**`flip` function** - takes a function and returns a function that is like our original function, only the first two arguments are flipped.
+
+```haskell
+flip' :: (a -> b -> c) -> (b -> a -> c)
+flip' f = g
+  where g x y = f y x
+```
+
+- `(a -> b -> c) -> (b -> a -> c)` is the same as `(a -> b -> c) -> (b -> (a -> c))` which is the same as `(a -> b -> c) -> b -> a -> c`
+- A simpler implementation : `flip' f y x = f x y`
+
+**`map` function** - takes a function and a list and applies that function to every element in the list, producing a new list.
+
+```haskell
+map' :: (a -> b) -> [a] -> [b]
+map' _ [] = []
+map' f (x:xs) = f x : map' f xs
+```
+
+**`filter` function** - takes a predicate (a predicate is a function that tells whether something is true or not) and a list and then returns the list of elements that satisfy the predicate.
+
+```haskell
+filter' :: (a -> Bool) -> [a] -> [a]
+filter' _ [] = []
+filter' p (x:xs)
+  | p x = x : filter p xs
+  | otherwise = filter p xs
+-- If `p x` evaluates to `True`, element gets included in the list
+-- If it doesn't, it stays out
+```
+
+Implement quicksort using `filter`:
+
+```haskell
+quicksort' :: (Eq a) => [a] -> [a]
+quicksort' [] = []
+quicksort' x:xs =
+  let smallerSorted = quicksort (filter (<=x) xs)
+      biggerSorted = quicksort (filter (>x) xs)
+  in smallerSorted ++ [x] ++ biggerSorted
+```
+
+No set rule for when to use `map` and `filter` versus using list comprehension. It depends on the readability in code and the context.
+
+### More Examples
+
+**find the sum of all odd squares that are smaller than 10,000**
+
+```haskell
+-- `takeWhile` takes a predicate and a list and then goes from beginning of the list and returns its elements while the predicate holds true
+sum (takeWhile (<10000>) (filter odd (map (^2) [1..])))
+```
+
+**Collatz sequences: for all starting numbers between 1 and 100, how many chains have a length greater than 15**
+
+```haskell
+chain :: (Integral a) => a -> [a]
+chain 1 = [1]
+chain x
+  | even x = x:chain (x `div` 2)
+  | odd x = x:chain (x * 3 + 1)
+
+numLongChains :: Int
+numLongChains = length (filter isLong (map length (map chain [1..100])))
+  where isLong xs = length xs > 15
+```
+
+**Mapping functions that take >1 parameter over lists**
+
+```haskell
+-- Map function that takes one param
+map (*2) [0..] -- list of type (Num a) => [a]
+-- Map function that takes two param
+map (*) [0..] -- list of functions (Num a) => [a -> a]
+```
+
+---
+
+## Lambdas
+
+Anonymous functions that are used because need some functions only once.
+
+Making a Lambda example with `\`:
+`\xs -> length xs > 15`
+
+Like normal functions, pattern matching is possible in lambdas. If a pattern matching fails in a lambda, runtime error occurs.
+
+```
+ghci> map (\(a,b) -> a + b) [(1,2),(3,5),(6,3),(2,6),(2,5)]
+[3,8,9,8,7]
+```
+
+Lambdas are normally surrounded by parentheses unless they are meant to extend all the way to the right.
+
+---
+
+## Folds and horses
+
+**Fold**
+
+- Takes a binary function, a starting value (accumulator) and a list to fold up
+- The binary function takes two params
+- The binary function is called with the accumulator and the first (or last) element and produces a new accumulator
+- The binary function is called again with the new accumulator and so on
+- Once the list is walked over, only the accumulator remains (reduced list)
+
+```haskell
+-- Implementing `sum` using foldl (left fold)
+sum' :: (Num a) => [a] -> a
+sum' xs = foldl (\acc x -> acc + x) 0 xs
+-- A more succinct implementation
+sum' :: (Num a) => [a] -> a
+sum' = foldl (+) 0
+
+-- Implementing `elem`
+elem' :: (Eq a) => a -> [a] -> Bool
+elem' y ys = foldl (\acc x -> if x == y then True else acc) False ys
+```
+
+> Generally, if you have a function like `foo a = bar b a`, can rewrite it as `foo = bar b` because of currying
+
+`foldr` works in a similar way to the left fold, only the accumulator eats up value from the right. `folr` binary function has current value as first param and the accumulator as second (`\x acc -> ...`)
+
+```haskell
+-- Implementing `map` with foldr
+map' :: (a -> b) -> [a] -> [b]
+map' f xs = foldr (\x acc -> f x : acc) [] xs
+-- left fold implementation
+map' f xs = foldl (\acc x -> acc ++ [f x]) [] xs
+-- However, `++` is much more expensive than `:`
+```
+
+> `foldl1` and `foldr1` functions don't need to be provided with an explicit starting value. The first (or last) element of the list is assumed to be the starting value. Thus `sum` can be implemented like so: `sum = foldl1 (+)`.  
+> However, they need the lists they fold to have at least one element, else it will cause runtime errors.
+
+`scanl` and `scanr` are like `foldl` and `foldr`, only they report all the intermediate accumulator states in the form of a list.
+
+---
+
+## Function application with \$
+
+Normal function application (putting a space between two things) has a really high precedence, `$` function has the lowest precedence.
+
+Function application with a space is left-associative (`f a b c` same as `((f a) b) c)`). Function application with `$` is right associative.
+
+Consider `sum(map sqrt [1..130])`. Because `$` has a low precedence, we can rewrite the expression as `sum $ map sqrt [1..130]` omitting the `( )`. With `$`, the expression on its right is applied as the parameter to the function on its left.
+
+---
+
+## Function composition
+
+In mathematics, function composition is defined as `(f . g)(x) = f(g(x))`.
+
+In haskell, we do it with the `.` function.
+
+```haskell
+(.) :: (b -> c) -> (a -> b) -> a -> c
+f . g = \x -> f (g x)
+```
+
+Mind the type declaration. `f` must take as its parameter a value that has the sam type as `g`'s return value.
+
+Rewriting `lambda` application with function composition:
+
+```haskell
+-- Lambda
+map (\x -> negate (abs x)) [5,-3,-6,7,-3,2,-19,24]
+-- Function composition
+map (negate . abs) [5,-3,-6,7,-3,2,-19,24]
+```
+
+To use multi-param functions in function composition, we have to partially apply them such that each function takes just one parameter.
+
+```haskell
+sum (replicate 5 (max 6.7 8.9)) -- equivalent to
+sum . replicate 5 . max 6.7 $ 8.9
+```
+
+Writing functions in point free style is less readable if a function is too complex. The prefered style is to use `let` bindings to give labels to intermediary results or split the problem into sub-problems. E.g.
+
+```haskell
+oddSquareSum :: Integer
+oddSquareSum =
+    let oddSquares = filter odd $ map (^2) [1..]
+        belowLimit = takeWhile (<10000) oddSquares
+    in  sum belowLimit
+```
+
+# Modules
+
+## Importing Modules
+
+```haskell
+import Data.List -- All functions that `Data.List` exports become available in the global namespace
+```
+
+Selective imports
+
+```haskell
+import Data.List (nub, sort)
+```
+
+Import all except few select ones
+
+```haskell
+import Data.List hiding (nub)
+```
+
+Avoiding name clashes with qualified imports
+
+```haskell
+import qualified Data.Map as M
+-- To reference Data,Map's `filter`, use M.filter
+```
+
+## Defining Module
+
+```haskell
+module Geometry
+( sphereVolume
+, sphereArea
+, cubeVolume
+, cubeArea
+, cuboidArea
+, cuboidVolume
+) where
+```
+
+# Making Types and Typeclasses
+
+Use `data` keyword to define a type. E.g.
+
+```haskell
+data Bool = False | True
+```
+
+Part before `=` denotes the type, which is `Bool`. Parts after the `=` are **value constructors**. They specify the different values that this type can have.
+
+**Specifying a shape datatype (example)**
+
+```haskell
+data Shape = Circle Float Float Float | Rectangle Float Float Float Float
+```
+
+- `Circle` value constructor takes in three float fields while `Rectangle` take four float fields
+
+> Value constructors are just functions that take the fields as parameters and return a value of some type as a result.
+
+Function that takes a shape and returns its surface example:
+
+```haskell
+surface :: Shape -> Float
+surface (Circle _ _ r) = pi * r ^ 2
+surface (Rectangle x1 y1 x2 y2) = (abs $ x2 - x1) * (abs $ y2 - y1)
+```
+
+> We don't write `Circle -> Float` type declaration because `Circle` is not a type, `Shape` is.
+
+**Display data type as a string**
+
+```haskell
+data Shape = Circle Float Float Float | Rectangle Float Float Float Float deriving (Show) -- NOTE the `deriving (Show)`
+```
+
+**Value constructors are functions - we can map them and partially apply them and everything**
+
+```
+ghci> map (Circle 10 20) [4,5,6,6]
+[Circle 10.0 20.0 4.0,Circle 10.0 20.0 5.0,Circle 10.0 20.0 6.0,Circle 10.0 20.0 6.0]
+```
+
+**Making intermediate data type**
+
+Defining a 2-dimensional `Point` intermediate data type
+
+```haskell
+data Point = Point Float Float deriving (Show)
+data Shape = Circle Point Float | Rectangle Point Point deriving (Show)
+```
+
+New `surface` function:
+
+```haskell
+surface :: Shape -> Float
+surface (Circle _ r) = pi * r ^ 2
+surface (Rectangle (Point x1 y1) (Point x2 y2)) = (abs $ x2 - x1) * (abs $ y2 - y1)
+
+surface (Rectangle (Point 0 0) (Point 100 100))
+surface (Circle (Point 0 0) 24)
+```
+
+## Export data types in modules
+
+```haskell
+module Shapes
+( Point(..)
+, Shape(..)
+, surface
+, nudge
+, baseCircle
+, baseRect
+) where
+```
+
+By doing `Shape(..)`, we exported all value constructors for `Shape`. This is same as writing `Shape (Rectangle, Circle)`.
+
+## Record Syntax
+
+```haskell
+data Person = Person { firstName :: String
+                     , lastName :: String
+                     , age :: Int
+                     , height :: Float
+                     , phoneNumber :: String
+                     , flavor :: String
+                     } deriving (Show)
+
+data Car = Car {company :: String, model :: String, year :: Int}
+Car {company = "Ford", model = "Mustang", year = 1967}
+```
+
+Creates functions that lookup fields in the data type.
+
+```
+ghci> :t flavor
+flavor :: Person -> String
+ghci> :t firstName
+firstName :: Person -> String
+```
+
+Use record syntax when a constructor has several fields and it's not obvious which field is which.
+
+## Type parameters
+
+**Type constructors** take types as parameters to produce new types.
+
+```haskell
+data Maybe a = Nothing | Just a
+```
+
+`a` here is the type parameter, hence `Maybe` is a type constructor.
+
+Type parmeters are useful because we can make different types with them depending on what kind of types we want contained in our data type.
+
+Usually used when our data type would work regardless of the type of the value it holds.
+
+Don't put type constraints into data declaractions because will have to put them into the function type declarations either way. E.g.
+
+```haskell
+data (Ord k) => Map k v = ...
+```
+
+## Derived Instances
+
+Typeclasses are more like interfaces. We don't make data from typeclasses. Instead, we first make our data type and then think about what it can act like. (e.g. For something that can be equated, we make it an instance of the `Eq` typeclass)
+
+Making types instances of typeclasses by implementing functions defined by the typeclasses.
+
+Using the `deriving` keyword:
+
+```haskell
+data Person = Person { firstName :: String
+                     , lastName :: String
+                     , age :: Int
+                     } deriving (Eq)
+```
+
+- When derive the `Eq` instance and try to compare two values of that type with `==` or `/=`. Haskell will see if the value constructors match and then it will check if all the data contained inside matches by testing each pair of fields with `==` (types of all fields also have to be part of the `Eq` typeclass).
+
+Deriving instances for `Ord` type class
+
+```haskell
+data Bool = False | True deriving (Ord)
+```
+
+- When comparing two values of the same type that were made using different constructors, the value which was made with a constructor that's defined first is considered smaller.
+- In the above example, `False` value constructor is specified first, then `True`. Thus, `True` is greater than `False`
+
+## Type Synonyms
+
+Give types different names. Make a synonym for an already existing type.
+
+```haskell
+type String = [Char]
+```
+
+Giving `String` type synonyms when want to convey more information about what the strings represent.
+
+Parameterizing type synonyms:
+
+```haskell
+type AssocList k v = [(k,v)]
+-- AssocList is a type constructor that takes two types and produces a concrete type
+```
+
+Data types examples (`Either`, `Maybe`):
+
+```haskell
+data Either a b = Left a | Right b deriving (Eq, Ord, Read, Show)
+```
+
+- Use this type to encapsulate a value of one type or another
+- Pattern match on both `Left` and `Right`
+- Used when we are interested in how some function failed of why -> `a` is possible failure, `b` is the type of a successful computation
+
+```haskell
+data Maybe a = Nothing | Just a
+```
+
+- `Maybe` used to represent the results of computations that could have either failed or not
+- Useful for functions that can fail in only one way or not interested in how and why they failed
+
+Locker example:
+
+```haskell
+import qualified Data.Map as Map
+
+data LockerState = Taken | Free deriving (Show, Eq)
+type Code = String
+type LockerMap = Map.Map Int (LockerState, Code)
+
+lockerLookup :: Int -> LockerMap -> Either String Code
+lockerLookup lockerNumber map =
+    case Map.lookup lockerNumber map of
+        Nothing -> Left $ "Locker number " ++ show lockerNumber ++ " doesn't exist!"
+        Just (state, code) -> if state /= Taken
+                                then Right code
+                                else Left $ "Locker " ++ show lockerNumber ++ " is already taken!"
+```
+
+## Recursive Data Structures
+
+**Implementing list:**
+
+```haskell
+data List a = Empty | Cons a (List a) deriving (Show, Read, Eq, Ord)
+```
+
+- Either an empty list or a combination of a head with some value and a list
+- `Cons` is another word for `:`. `:` is a constructor that takes a value and another list and returns a list.
+  - `` 4 `Cons` (5 `Cons` Empty) `` is like `4:(5:[])`
+
+When defining functions as operator, we can use a fixity
+
+```haskell
+infixr 5 :-: -- Right associative
+data List a = Empty | a :-: (List a) deriving (Show, Read, Eq, Ord)
+```
+
+- A fixity states how tightly the operator binds (?) and whether it's left or right associative.
+
+Defining our own `++` function:
+
+```haskell
+infixr 5 .++
+(.++) :: List a -> List a -> List a
+Empty .++ ys = ys
+(x :-: xs) .++ ys = x :-: (xs .++ ys)
+```
+
+> Pattern matching is about matching constructors
+
+**Implementing binary search tree:**
+
+```haskell
+-- A tree is either an empty tree or it's an element that contains some value and two trees.
+data Tree a = EmptyTree | Node a (Tree a) (Tree a) deriving (Show, Read, Eq)
+```
+
+Utility function for making a singleton tree (a tree with just one node):
+
+```haskell
+singleton :: a -> Tree a
+singleton x = Node x EmptyTree EmptyTree
+```
+
+Insert an element into a tree function:
+
+```haskell
+treeInsert :: (Ord a) => a -> Tree a -> Tree a
+treeInsert x EmptyTree = singleton x
+treeInsert x (Node a left right)
+  | x == a = Node x left right
+  | x < a = Node a (treeInsert x left) right
+  | x > a = Node a left (treeInsert x right)
+```
+
+> In Haskell, we can't really modify our tree, so we have to make a new sub-tree each time we decide to go left or right and in the end the insertion function returns a completely new tree.
+
+Check if element is in tree function:
+
+```haskell
+treeElem :: (Ord a) => a -> Tree a -> Bool
+treeElem x EmptyTree = False
+treeElem x (Node a left right)
+  | x == a = True
+  | x < a = Node a (treeElem x left) right
+  | x > a = Node a left (treeElem x right)
+```
+
+Building up a tree from a list:
+
+```haskell
+let nums = [8, 6, 4, 1, 7, 3]
+let numsTree = foldr treeInsert EmptyTree nums
+```
+
+## Making Typeclasses
+
+Example `Eq` typeclass:
+
+```haskell
+class Eq a where
+    (==) :: a -> a -> Bool
+    (/=) :: a -> a -> Bool
+    x == y = not (x /= y)
+    x /= y = not (x == y)
+```
