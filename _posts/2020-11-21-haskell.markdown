@@ -971,3 +971,248 @@ class Eq a where
     x == y = not (x /= y)
     x /= y = not (x == y)
 ```
+
+- `class Eq a where` defines a new typeclass called `Eq`. `a` is the type variable where `a` will be the type that makes an instance of `Eq`
+- After `where`: define several functions; not mandatory to implement the function bodies, just need to specify the type declarations.
+- `a` has to be a concrete type
+
+Making an instance of `Eq`:
+
+```haskell
+data TrafficLight = Red | Yellow | Green
+instance Eq TrafficLight where
+  Red == Red = True
+  Green == Green = True
+  Yellow == Yellow = True
+  _ == _ = False
+```
+
+- Because `==` was defined in terms of `/=` and vice versa in the class declaration, we only had to overwrite one of them in the instance declaration.
+- If function body of the typeclass is not implemented, we will need to implement both `==` and `/=` case (in the context of `Eq`)
+
+Make typeclasses that are subclasses of other typeclasses:
+
+```haskell
+class (Eq a) => Num a where
+...
+```
+
+- We say that we have to make a type an instance of `Eq` before we can make it an instance of `Num`
+- Subclassing is just a class constraint on a class declaration
+
+Making an instance of `Eq` with `Maybe`:
+
+```haskell
+instance (Eq m) => Eq (Maybe m) where
+    Just x == Just y = x == y
+    Nothing == Nothing = True
+    _ == _ = False
+```
+
+- Have to add the class constraint in the instance declaration because we have no assurance that what the `Maybe` contains can be used with `Eq`
+
+> To know what instances of a typeclass are, do `:info YourTypeClass`.
+
+**YesNo typeclass**
+
+```haskell
+class YesNo a where
+  yesno :: a -> Bool
+```
+
+Example instances:
+
+```haskell
+instance YesNo Int where
+  yesno 0 = False
+  yesno _ = True
+
+instance YesNo [a] where
+  yesno [] = False
+  yesno _ = True
+
+instance YesNo (Maybe a) where
+  yesno (Just _) = True
+  yesno Nothing = False
+```
+
+## Functor Typeclass
+
+For things that can be mapped over like list. How it is implemented:
+
+```haskell
+class Functor f where
+  fmap :: (a -> b) -> f a -> f b
+```
+
+- Type `f` is not concrete. It is a type constructor that takes one type parameter
+
+How list is an instance of the Functor class:
+
+```haskell
+instance Functor [] where
+  fmap = map
+```
+
+- We didn't write `instance Functor [a] where` because `f` has to be a type constructor that takes one type. `[a]` is a concrete type while `[]` is a type constructor.
+
+Types that can act like a box (can either hold something or nothing) can be functors.
+
+How `Maybe` is a functor:
+
+```haskell
+instance Functor Maybe where
+  fmap f (Just x) = Just (f x)
+  fmap f Nothing = Nothing
+```
+
+- Mentally replacing `f` with `Maybe`: `fmap` acts like a `(a -> b) -> Maybe a -> Maybe b`
+
+How `Tree` can be made an instance of `Functor`:
+
+```haskell
+instance Functor Tree where
+  fmap f EmptyTree = EmptyTree
+  fmap f (Node x leftsub rightsub) = Node (f x) (fmap f leftsub) (fmap f rightsub)
+```
+
+How `Either` can be made a functor:
+
+```haskell
+instance Functor (Either a) where
+  fmap f (Right x) = Right (f x)
+  fmap f (Left x) = Left x
+```
+
+How `Map` can be made a functor:
+
+```haskell
+import qualified Data.Map as M
+instance (Ord k) => Functor (M.Map k) where
+ fmap = M.map
+```
+
+## Kinds
+
+Types have their own labels, called **kinds**. A kind is more or less the type of a type.
+
+Examining **kind**:
+
+```
+ghci> :k Int
+Int :: *
+```
+
+- A `*` means that the type is a concrete type. A concrete type is a type that doesn't take any parameters and values can only have types that are concrete types.
+
+```
+ghci> :k Maybe
+Maybe :: * -> *
+
+ghci> :k Maybe Int
+Maybe Int :: *
+```
+
+- `Maybe` type constructor takes one concrete type (like `Int`) and then returns a concrete type like `Maybe Int`.
+
+> Types are labels of values, kinds are labels of types
+
+# Input and Output
+
+In Haskell, a function can't change some state, like changing the contents of a variable. When a function changes state, we say that the function has _side-effects_.
+
+Example program:
+
+```haskell
+main = putStrLn "hello, world"
+```
+
+Compile the program:
+
+```
+$ ghc --make helloworld
+[1 of 1] Compiling Main             ( helloworld.hs, helloworld.o )
+Linking helloworld ...
+```
+
+Run the program:
+
+```
+$ ./helloworld
+hello, world
+```
+
+**I/O Action**
+
+```
+ghci> :t putStrLn
+putStrLn :: String -> IO ()
+```
+
+- `putStrLn` takes a string and returns an I/O action that has a result type of `()`
+- An I/O action is something that, when performed, will carry out an action with a side-effect and will also contain some kind of return value inside it.
+
+When an I/O action will be performed?
+
+- When we give it a name of `main` and run our program
+
+Glueing several I/O actions together into one:
+
+```haskell
+main = do
+  putStrLn "Hello, what's your name?"
+  name <- getLine
+  putStrLn ("Hey " ++ name ++ ", you rock!")
+```
+
+- Use `do` and lay out a series of steps like an imperative program. Each of the steps is an I/O action.
+
+We can think of an I/O action as a box that will go out into the real world and do something and maybe bring back some data. Once data is fetched, the only way to open the box to retrieve that data inside is to use the `<-` construct.
+
+We can only take out the data when we're inside another I/O action. (How Haskell neatly separates the pure and impure parts of the code)
+
+Every I/O action performed has a result encapsulated within it.
+
+In a _do_ block, **the last action cannot be bound to a name**.
+
+```haskell
+import Data.Char
+
+main = do
+    putStrLn "What's your first name?"
+    firstName <- getLine
+    putStrLn "What's your last name?"
+    lastName <- getLine
+    let bigFirstName = map toUpper firstName
+        bigLastName = map toUpper lastName
+    putStrLn $ "hey " ++ bigFirstName ++ " " ++ bigLastName ++ ", how are you?"
+```
+
+- Use `<-` when binding results of I/O actions to names
+- Use _let_ bindings to bind pure expressions to names
+
+An example program that continuously reads a line and prints out the same line with the words reversed:
+
+```haskell
+main = do
+  line <- getLine
+  if null line
+    then return ()
+    else do
+      putStrLn $ reverseWords line
+      main
+
+reverseWords :: String -> String
+reverseWords = unwords . map reverse . words
+```
+
+- In an I/O do block, _ifs_ have to have a form of `if *condition* then *I/O action* else *I/O action*`.
+- Calling `main` goes back to the start of the program
+- `return` makes an I/O action out of a pure value. The resulting I/O action doesn't do anything, it just has a value encapsulated as its result.
+- `return` is sort of opposite of `<-`. `return` takes a value and wraps it up in a box, `<-` takes a box (and performs it) and takes the value out of it, binding it to a name
+
+Some useful functions that deal with I/O:
+
+- `putStr`: Like `putStrLn` but doesn't jump into a new line
+- `putChar`: Takes a character and returns an I/O action that will print it out to the terminal
+- `print`: Takes a value of any type that's an instance of `Show`, calls `show` with that value to stringify it and then outputs that string to the terminal. Basically `putStrLn . show`.
